@@ -1,6 +1,7 @@
 const btnAnalisar = document.getElementById('btn-analisar');
 const btnExemplo = document.getElementById('btn-exemplo');
 const inputTexto = document.getElementById('texto-input');
+const inputUrl = document.getElementById('url-input'); // Novo campo de URL
 const btnTexto = btnAnalisar.querySelector('span');
 const areaResultado = document.getElementById('area-resultado');
 const divTextoFormatado = document.getElementById('texto-formatado');
@@ -19,18 +20,38 @@ function mostrarErro(mensagem) {
   msgErro.hidden = !mensagem;
 }
 
-// Substituir por chamada real à API quando disponível
-async function analisarTexto(texto) {
-  await new Promise(resolve => setTimeout(resolve, 1000));
-  return {
-    resultados: [
-      { sentenca: 'O Instituto de Pesquisas divulgou um novo relatório hoje.', is_claim: false },
-      { sentenca: 'Segundo os dados, a vacina reduziu as internações em 85%.', is_claim: true },
-      { sentenca: 'A população comemorou a notícia nas redes sociais.', is_claim: false },
-      { sentenca: 'Especialistas afirmam que o desmatamento na região aumentou 20% no último trimestre.', is_claim: true },
-      { sentenca: 'O governo ainda não se pronunciou sobre as medidas que serão tomadas.', is_claim: false }
-    ]
-  };
+// Faz o pedido real ao seu backend (FastAPI)
+async function analisarTexto(texto, url) {
+  // NOTA: Usando a porta 7860 de acordo com o que apareceu no seu terminal.
+  // Se futuramente o servidor arrancar noutra porta (ex: 8000), altere aqui.
+  const resposta = await fetch('http://localhost:7860/api/analisar', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ texto: texto || null, url: url || null })
+  });
+
+  if (!resposta.ok) {
+    const erroData = await resposta.json().catch(() => ({}));
+    throw new Error(erroData.detail || 'Erro na comunicação com o servidor.');
+  }
+
+  const dados = await resposta.json();
+
+  // Transforma o formato recebido do backend no formato esperado pela interface visual
+  const resultadosFormatados = dados.sentencas.map(item => {
+    // Identifica se a classe gerada pelo modelo representa uma "Claim"
+    const nomeClasse = String(item.classe).toLowerCase();
+    const eClaim = item.classe === 1 || nomeClasse === 'claim' || nomeClasse === 'verdadeiro' || nomeClasse === 'sim';
+    
+    return {
+      sentenca: item.sentenca_corrigida,
+      is_claim: eClaim
+    };
+  });
+
+  return { resultados: resultadosFormatados, origem: dados.origem };
 }
 
 function urlGoogle(sentenca) {
@@ -68,9 +89,13 @@ function renderizar(resultados) {
 async function enviar() {
   mostrarErro('');
 
-  if (!inputTexto.value.trim()) {
-    mostrarErro('Por favor, cole um texto antes de analisar.');
-    inputTexto.focus();
+  const textoValue = inputTexto.value.trim();
+  const urlValue = inputUrl ? inputUrl.value.trim() : '';
+
+  if (!textoValue && !urlValue) {
+    mostrarErro('Por favor, cole um texto ou um link do Instagram antes de analisar.');
+    if (inputUrl) inputUrl.focus();
+    else inputTexto.focus();
     return;
   }
 
@@ -79,12 +104,14 @@ async function enviar() {
   btnAnalisar.disabled = true;
 
   try {
-    const dados = await analisarTexto(inputTexto.value);
+    const dados = await analisarTexto(textoValue, urlValue);
     renderizar(dados.resultados);
-    adicionarAoHistorico(inputTexto.value, dados.resultados);
+    
+    const textoParaHistorico = textoValue ? textoValue : `Análise de Link (${dados.origem}): ${urlValue}`;
+    adicionarAoHistorico(textoParaHistorico, dados.resultados);
   } catch (erro) {
     console.error(erro);
-    mostrarErro('Não foi possível processar o texto. Tente novamente.');
+    mostrarErro(erro.message);
   } finally {
     btnTexto.textContent = 'Analisar Texto';
     btnAnalisar.disabled = false;
@@ -94,11 +121,14 @@ async function enviar() {
 btnAnalisar.addEventListener('click', enviar);
 btnExemplo.addEventListener('click', () => {
   inputTexto.value = TEXTO_EXEMPLO;
+  if(inputUrl) inputUrl.value = '';
   mostrarErro('');
   inputTexto.focus();
 });
 
+// ==========================================
 // Histórico (salvo no navegador)
+// ==========================================
 const CHAVE_HISTORICO = 'historico-claims';
 const MAX_HISTORICO = 20;
 
@@ -173,7 +203,9 @@ histLista.addEventListener('click', e => {
     salvarHistorico(lista.filter(i => i !== item));
     renderizarHistorico();
   } else if (e.target.closest('.hist-abrir')) {
+    // Quando abre do histórico, coloca apenas o texto no inputTexto (para limpar o campo link)
     inputTexto.value = item.texto;
+    if(inputUrl) inputUrl.value = '';
     mostrarErro('');
     renderizar(item.resultados);
     document.getElementById('analisador').scrollIntoView({ behavior: 'smooth' });
@@ -189,7 +221,9 @@ btnLimpar.addEventListener('click', () => {
 
 renderizarHistorico();
 
+// ==========================================
 // Menu mobile
+// ==========================================
 function alternarMenu(aberto) {
   menu.classList.toggle('aberto', aberto);
   menuBtn.setAttribute('aria-expanded', String(aberto));

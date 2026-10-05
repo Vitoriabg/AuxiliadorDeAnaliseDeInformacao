@@ -45,7 +45,12 @@
 
         <div class="card">
           <div class="field-top">
-            <label for="texto-input">Texto da notícia</label>
+            <label for="url-input">Link do Instagram (Post ou Reel)</label>
+          </div>
+          <input type="url" id="url-input" placeholder="Ex: https://www.instagram.com/p/..." style="width: 100%; padding: 14px; border: 1px solid var(--borda); border-radius: 8px; margin-bottom: 20px; font: inherit; background: #fafbfd; color: var(--titulo);">
+
+          <div class="field-top">
+            <label for="texto-input">Ou cole o texto da notícia</label>
             <button type="button" class="link" id="btn-exemplo">Usar texto de exemplo</button>
           </div>
           <textarea id="texto-input" placeholder="Cole a notícia inteira aqui para iniciar a análise..."></textarea>
