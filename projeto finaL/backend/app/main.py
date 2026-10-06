@@ -19,7 +19,6 @@ MAX_SENTENCAS = 80
 
 app = FastAPI(title="API de análise de sentenças")
 
-# Depois do deploy, troque "*" pelo domínio da Vercel, ex.: ["https://meu-site.vercel.app"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
